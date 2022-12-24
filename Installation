@@ -1,0 +1,174 @@
+Devops
+Puppet Installation on Ubuntu
+
+Puppet Master
+sudo apt-get update
+sudo apt-get install wget
+wget https://apt.puppetlabs.com/puppet-release-bionic.deb
+sudo dpkg -i puppet-release-bionic.deb
+sudo apt-get update
+apt policy puppet master
+sudo apt-get install puppet master
+
+installing puppet agent
+sudo apt-get update
+sudo apt-get install wget
+wget https://apt.puppetlabs.com/puppet-release-bionic.deb
+sudo dpkg -i puppet-release-bionic.deb
+sudo apt-get update
+apt policy puppet master
+sudo apt-get install puppet
+
+configuring puppet master
+sudo nano /etc/default/puppet-master
+JAVA_ARGS="-Xms512m Xmx512m" //Add this Line
+sudo systemctl restart puppet-master
+
+sudo ufw allow 8140/tcp
+
+sudo nano /etc/hosts
+ec2ip puppet
+
+sudo mkdir -p /etc/puppet/code/environments/production/manifests
+
+configuring puppet slave
+sudo nano /etc/hosts
+master ec2ip puppet
+
+sudo systemctl start puppet
+sudo systemctl enable puppet
+
+On Master
+sudo puppet cert list
+sudo puppet cert sign --all
+
+Using Variables in Manifest
+On Master
+cd /etc/puppet/code/environments/production/manifests
+sudo nano site.pp
+
+node default{
+$text= "hello world
+file{'tmp/hello.txt':
+content=> $text,
+mode=> '0644',
+}
+
+On puppet Agent
+sudo puppet agent-test
+cat /tmp/hello.txt
+
+Using loops in manifest
+
+onlyif
+
+Puppet master
+cd /etc/puppet/code/environments/production/manifests
+sudo nano site.pp
+
+node default{
+$packages=> ['apache2','mysqlserver']
+package{$packages:
+ensure=> installed,
+}
+}
+
+On Puppet Agent
+sudo puppet agent-test
+ec2ip on browser
+
+Using conditions in Manifest
+Puppet master
+cd /etc/puppet/code/environments/production/manifests
+sudo nano site.pp
+
+node default{
+exec{'Conditions':
+command=> '/bin/echo "Apache installed" > /tmp/software.txt',
+onlyif=> /bin/which apache2',
+}
+}
+
+On Puppet Agent
+sudo puppet agent-test
+cat /tmp/software.txt
+ec2ip on browser
+
+unless
+Puppet master
+cd /etc/puppet/code/environments/production/manifests
+sudo nano site.pp
+node default{ 
+exec{'Conditions':
+command=> '/bin/echo "php is not installed" > /tmp/software.txt', 
+unless=> '/bin/which php,
+}
+}
+
+On Puppet Agent
+sudo puppet agent-test
+cat /tmp/software.txt
+ec2ip on browser
+
+Code for Installing nginx if apache2 is not Installed 
+$ sudo puppet agent --test
+node default{
+exec{'apachedocker':
+ command=> 'apt-get install nginx -y',
+ path 
+=>'/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+:/sbin:/bin:/usr/games:/usr/local/games',
+ unless=> '/bin/which apache2',
+ }
+}
+
+Creating a Manifest in Puppet
+Puppet master
+cd /etc/puppet/code/environments/production/manifests
+sudo nano site.pp
+
+node default{
+package{'nginx':
+ensure => installed,
+}
+file{'tmp/status.txt':
+content => "nginx installed",
+mode => '0644',
+}
+}
+
+On Puppet Agent
+sudo puppet agent-test
+cat /tmp/software.txt
+ec2ip on browser
+
+Creating Modules in Puppet
+
+On Puppet Master
+mkdir new
+cd new
+sudo puppet module generate intelli-new
+
+cd ./new/new/manifests
+nano init.pp
+class new{
+file{'tmp/module_test.txt':
+content=> "This file is created by a module",
+mode=> '0644'
+}
+}
+
+cd new
+sudo puppet module build new
+sudo puppet module install ./new/pkg/intelli-new-0.1.0.tar.gz
+
+cd /etc/puppet/code/environments/production/manifest/site.pp
+
+node default{
+include new
+}
+
+On puppet Agent
+sudo puppet agent --test
+cat /tmp/module_test.txt
+
