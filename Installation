@@ -172,3 +172,610 @@ On puppet Agent
 sudo puppet agent --test
 cat /tmp/module_test.txt
 
+Installing Ansible
+
+A. Creating Ansible Playbook
+B. Creating Ansible Roles
+C. Using Ansible Roles inPlaybook
+Prerequisites:
+1. Ansible needsto be installed in master.
+2. Connection between Master and Host needsto be set through ssh. For more information refer to the Ansible Installation Documentation.
+A- Creating Ansible Playbook
+This playbook consists of two plays with following tasks:
+• Play 1: Execute a command in host1, Execute a script in host1
+• Play 2: Execute a script in host2, Install nginx in host2.
+
+step 1: create .yml file
+sudo nano <playbookname>
+
+step 2: Add the following content to the file
+---
+-hosts: host1 sudo: yes name: Play 1 tasks:
+-name: Execute command ‘Date’
+-command: date
+-name: Execute script on server script: test_script.sh
+-hosts: host2 name: Play 2 sudo: yes tasks:
+-name: Execute script on server script: test_script.sh
+-name: Install nginx
+-apt: name=nginx state=latest
+
+Step 3: Now to be able to perform “Execute script on server” task we need to have the .sh file 
+(unix/linux shell executables files) in master machine. Create test.sh file as shown.
+sudo nano <file_name>
+#|/bin/sh
+# This is a comment!
+echo Hello World
+
+Step 4: Before executing the playbook that we just created we need to have to check for syntax 
+errors.This means our playbook is syntax error free. Let us move ahead and execute the playbook.
+ansible-playbook <playbook> --syntax-check
+first_playbook.yml
+
+Step 5: To execute the playbook use the following command.
+sudo ansible-playbook <playbook>
+
+B- Creating Ansible Roles
+Step 1: Ansible roles should be written inside “/etc/ansible/roles/ ”. Use the following 
+command to create one Ansible role.
+sudo ansible-galaxy init <role name>
+
+Step 2: Install tree package using sudo apt install tree. Use tree command to view structure of the 
+role
+sudo apt install tree
+tree <role name>
+
+Now we are ready to create the tasks that our roles are supposed to perform.
+Step3:Goinsidetaskfolderinsideapachedirectory.Editmain.ymlusingthefollowing 
+command. Make changes as shown. Save and thenexit
+sudo nano main.yml
+
+Now we will divide the tasks to be performed into three categories. Install, configure 
+and services. We will create three different .yml files to reduce the complexity. Include 
+those separate task files in the main.yml file as
+shown.
+---
+# tasks file for apache
+-include: install.yml
+-include: configure.yml
+-include: service.yml
+
+Rememberthat order ofthe listin ymlfile matters. So here install.yml gets executed first,then 
+ configure.yml and thenservice.yml.
+
+Step 4: Now inside task folder, create install.yml and add the installation tasks to be performed as 
+shown below. We will install the latest version of apache2 in the remote machine with the help of apt module as shown below.
+sudo nano install.yml
+---
+  - name: install apache2
+    apt: name=apache2 update_cache=yes state=latest
+    become: true
+
+Step 5: Then create configure.yml and add the required configurations that need to be performed on remote machine as shown below.
+sudo nano configure.yml
+---
+#configure apache2.conf and send copy.html file
+ - name: apache2.conf file
+   copy: src=apache2.conf dest=/etc/apache2/
+   become: true
+   notify:
+     - restart apache2 service
+  - name: send copy.html file
+    copy: src=copy.html dest=/home/ubuntu/
+    become: true
+
+We will configure apache2.conf file in the remote machine and also, we will restart the apache2 
+service. Then we will send one file from /etc/ansible/roles/apache/files folder to the remote 
+machine. The destination path has been set to /home/ubuntu/ as shown
+
+---
+#configure apache2.conf and send copy.html file
+ - name: apache2.conf file
+   copy: src=apache2.conf dest=/etc/apache2/
+   become: true
+   notify:
+     - restart apache2 service
+  - name: send copy.html file
+    copy: src=copy.html dest=/home/ubuntu/
+    become: true
+
+Step 6:Again, inside task folder, create service.yml and add the required configurationsthat need to be performed on remote machine as shown below.
+sudo nano service.yml
+---
+- name: starting apache2 service 
+  service: name=apache2 state=started
+  become: true
+
+Step 7: Now go inside files. Store the files that needs to be pushed to the remote machine.
+Copy the apache2.conf file from /etc/apache2 directory to /etc/ansible/roles/apache/files and create the htmlfile.
+cp/etc/apache2/apache2.conf /etc/ansible/roles/apache/files
+
+Create one html file as well. My dummy html file looks like this
+<html>
+<title> Some File </title>
+<body> <h1> Copy This File> </h1>
+</body>
+</html>
+
+ls
+Step 8: Go inside handlers and add the action that needs to be performed after notify from
+configure.yml is executed. Use the following two commands.
+cd /etc/ansible/roles/apache/handlers/
+sudo nano main.yml
+---
+#handlers file for apache
+ - name: restart apache2 service
+   service: name=apache2 state=restarted
+
+Remember that notify name and handler name should match.
+
+Step 9: Go inside meta and add information related to the role.
+cd /etc/ansible/roles/apache/handlers/
+sudo nano main.yml
+
+Add author information, role descriptions, company information etc. as shown below
+galaxy_info:
+  author: Intellipaat
+  description: simple apache role
+  company: Intellipaat
+
+Step10:Gotothe /etc/ansible/andcreate onetoplevel .ymlfilewherewe canaddhosts and 
+roles to be executed. Execute apache role on the hoststhat is under the group name servers, 
+added in the inventory file /etc/ansible/hosts
+cd /etc/ansible/ sudo nano site.yml
+
+For more than one hosts follow:
+---
+ - hosts: host1
+   roles:
+    - apache
+
+Step 11: Before we execute our top level yml file we will check forsyntax errors put our configuration in there as shown below.
+ansible-playbook <filename.yml> --syntax- check
+
+Step 12: Execute the top level .yml file
+ansible-playbook <filename.yml>
+
+C- Using Ansible Roles in Playbook
+Step 1: To use ansible roles along with other tasks in playbook use import_role and include_role. 
+Create one playbook called to execute on the remote machines along with two debug tasks 
+before and after apache role.
+sudo nano <playbook name>
+---
+ - hosts: host1
+   become: true
+   tasks:
+ - debug:
+     msg: "before we run our role"
+ - import_role:
+     name: apache
+ - include_role:
+     name: apache
+ - debug:
+     msg: "after we ran our role"
+
+Step 2: Check for syntax error and execute the playbook withroles.
+ansible-playbook <playbookname> --syntax-check
+
+Step 3: Check for syntax error and execute the playbook withroles.
+ansible-playbook <playbookname>
+
+JENKINS HANDS-ON
+1. Create 3 instances (Master, Slave-1, Slave-2) on EC2 server. 
+2. Install Jenkins on Master. (Refer to the Jenkins installation documentation) 
+3. Set up a Jenkins Master-Slave Cluster on AWS 
+4. Create a CI CD pipeline triggered by Git Webhook.
+
+First, we have created 3 instances Master (Green terminal), Slave-1(Orange Terminal) and
+Slave-2(Blue Terminal) on EC2 Server. And then we have installed the Jenkins on Master 
+Machine. Now Let us set up the Jenkins Master-Slave Cluster.
+
+Step 1: Check the status of the Jenkins first. 
+$ service jenkins status
+
+create the ec2 instances sg allow all traffic and the port range 0-65535
+Masterip:8080
+
+Step 5: Copy the path mentioned in the page and perform cat operation in master terminal.
+$ sudo cat <path>
+<path> cat /var/lib/jenkins/secrets/initaladminpassword
+
+Step 7: Go to Manage Jenkins. Click on Configure Global Security.
+Step 8: Change the Agents to Random. Then click on Save.
+Step 9: Now go to Manage Nodes. 
+Step 10: Click on New Node. Add Slave-1 as new node and make Permanent Agent. Click on ok. 
+Step 11: Go to Launch method change it to Launch agent via Java Web Start.
+Step 12: Then add the current working directory path to /home/ubuntu/jenkins. Then click on Save.
+Step 13: Make another node Slave-2 and copy from Slave-1 as shown below: 
+Step 14: Then click ok. You can see the list of nodes that we have on the Jenkins Dashboard.
+Step 15: Before moving ahead, download FileZilla. 
+Step 16: Once you install FileZilla the home page looks like this:
+Step 17: Now copy the Slave-1 IP address. And add it as Host. Add ubuntu as username. Leave the 
+password field empty. Add Port as 22.
+Don’t start the connection yet.
+Step 18: Before we start the connection, we need to add the Private key (PPK file). Go to Edit, click on 
+Settings. Click on SFTP. Add the PPK file there and click ok.
+Step 19: Click on Quickconnect.
+Then click on ok.
+After connection is successful. 
+Step 20: Go to the Jenkins Dashboard, Click on Slave-1. Download the Agent.jar file by clicking on it.
+Step 21: Now drag and drop the agent.jar file on the ubuntu folder in FileZilla.
+Step 22: Let us verify if the file has been transferred to Slave-1 or not. Open a new session on putty. 
+Connect to slave-1. Run ls command.
+As you can see the agent.jar file appears there, which means our file has been successfully transferred to 
+Slave-1
+Step 23: Perform the steps 19 to 22 for Slave-2 as well. (Tip: Rename the agent.jar file of Slave-2.
+Before performing transfer operation in FileZilla)
+File transferring is successful for Slave-2 agent.jar file as well.
+Step 24: Again, verify by opening a new putty session for Slave-2
+Step 25: Now before moving ahead install open jdk on both Slave-1 and Slave-2.
+$ sudo apt-get update
+Step 26: Now install run the following installation command on both terminal. 
+$ sudo apt install open-9-jdk
+Step 27: Now we will connect Slave-1 and Slave-2 to the AWS Jenkins Server. Go to the Jenkins 
+Dashboard, Click on Slave-1, Copy the command line as shown. Page14
+It shows “Connected”.
+Step 28: Perform the Step-27 for Slave-2 as well. 
+Paste the command line in the Slave-2 Terminal.
+Important Note: Don’t end the Sessions that we just connected. To perform further operations on 
+Slave-1 and Slave-2 duplicate the sessions.
+So now that our Slave-1 and Slave-2 has been connected to Jenkins Server,
+After we have successfully created the Master Slave Cluster on AWS Jenkins. We will now create a CI CD
+pipeline triggered by Git Webhook. 
+
+Hands-on: Create a CI CD pipeline triggered by Git Webhook.
+Step 1: Before that open your GitHub account and import the below given repository. 
+https://github.com/hshar/devopsIQ.git 
+Step 2: Install docker on both Slave-1 and Slave-2.
+sudo apt install docker.io
+Step 3: Open Jenkins Dashboard. Create a new job (Freestyle Project) for Slave-1
+Name the Project as Test, Select Freestyle Project option. 
+Then click on Ok.
+You should land on a page like this.
+Step 4: Place your git repository link as shown below.
+Click on Restrict where this project can be run. Add Slave-1 there.
+Go to Source Code Management, click on git, add the git repository link there as well.
+Click on Save.
+Step 5: Click on Build Now, if the building is done without any error there will be blue circle in the 
+building history.
+Click on the blue circle of build #1.
+You can see it has been built successfully. Let us verify that. 
+Step 6: Go to slave-1.
+ ls
+$ cd workspace
+$ ls
+$ cd Test
+$ ls
+You can see the repository files there. This means the git repository has been successfully cloned into the 
+Test job. 
+Now we will deploy the website that we have stored in our repository. 
+Step 7: To run the Dockerfile we have to check the copy the present working directory. 
+ Now go back to configuring the job.
+ 
+Step 8: Click on Build, then go to Execute shell
+sudo docker rm -f $(sudo docker ps -a -q)
+sudo docker build /home/ubuntu/workspace/Test -t test 
+sudo docker run -it -p 82:80 -d test
+Click on save. 
+Before building our job again we must add one arbitrary container in slave-1.
+
+Step 9: Add container by performing the following command.
+$ sudo docker run -it -d ubuntu
+
+Step 10: Now open Jenkins Dashboard and build the project. Building was successful. 
+
+Step 11: Now open browser and enter Slave-1 IP:82
+This is the apache page that means our container is working perfectly. 
+
+Step 12: Now enter slave-1 IP:82/devopsIQ/ in the browser. This looks fine. Now, we will create a new project.
+
+Step 13: Create a new project.
+
+Step 14: Click on git project. Enter the git hub repository URL.
+
+Step 15: Click on Restrict where this project can be run enter Slave-2
+
+Step 16: Go to Source code management enter the git repository URL there as well.
+
+Step 17: Now enter the following command in the Execution shell
+sudo docker rm -f $(sudo docker ps -a -q)
+sudo docker build /home/ubuntu/workspace/Prod -t production 
+sudo docker run -it -p 82:80 -d production
+
+Step 18: Again, add one container to the Slave-2 as shown below.
+$ sudo docker run -it -d ubunt
+Now that we have added an arbitrary container, go to Jenkins Dashboard and build the project.
+
+Step 19: Build the project Prod.
+Our Project building was successful. 
+
+Step 20: Now go to the browser and enter Slave-2 IP:82/devopsIQ/ 
+It’s working!
+Now we will be triggered Prod job only when Test job will be completed. 
+
+Step 21: Go to the Test job, click on Configure. Add Post-Build Actions. Then go to Build Other 
+Projects.
+
+Click on Save. 
+Now we will run jobs using pipeline. 
+Step 22: Go to the manage jenkins, click on available, search for Build Pipeline. Click on install without 
+restart.
+
+Step 23: Go to the jenkins dashboard. Click on the +.
+
+Step 24: Enter view name and click ok.
+
+Step 25: There add the Build Pipeline View Title, then Select initial job as Test.
+Click on ok. You should see the Pipeline Page like this.
+
+Step 26: Click on Run. Then Refresh the Page once.
+
+Now we will commit on GitHub, which should trigger our Jenkins Job
+
+Step 27: Go to the Jenkins Dashboard. Click on Test and then Configure. Check the GitHub hook trigger 
+for GITScm polling option.
+
+Step 28: Now configure GitHub Webhook. Go to settings, then click on Webhooks, then add webhooks. 
+There insert the Jenkins Server Address as shown.
+
+$ JenkinsServer Address/github-webhook/
+
+Click on Add webhook. You should see this.
+
+Step 29: Go to the mater terminal to trigger a built. 
+
+$ git clone <git repository URL> https://github.com/humblegumble/dbdevops.git
+
+Step 30: Now we will try to modify the website from the master terminal. Go to the master terminal 
+and then go to the devopsIQ directory where you can find index.html file. Open it for modification
+nano index.html
+
+Step 31: Make the modification in the title and body of that html file as shown below.
+
+Step 32: Finally, perform git add and git commit.
+$ git add
+$ git commit -m “new commit”
+
+Step 33: Perform git push.
+$ git push origin master
+
+Step 34: Go to the browser. Refresh it. And you can see the background image got changed.
+Congratulations! You have successfully completed the hands on.
+
+NAGIOS INSTALLATION ON UBUNTU
+Nagios installation has been divided into three parts.
+1) Installing Nagios on Master
+2) Installing NRPE on slave
+3) Installing Check_NRPE Plugin on Master
+Commands with green font represents master, white font terminal represents slave.
+
+Step 1: Update package index
+sudo apt-get update
+
+Step 2: Run the following two commands after that
+sudo apt-get install wget build-essential unzip openssl libssl-dev
+sudo apt-get install wget build-essential unzip openssl libgd-dev
+
+Step 3: Now, add user with the commands given below.
+sudo adduser nagios
+You can add passwords and enter the user information as shown below
+
+Step 4: Run the following commands to complete the user adding process.
+sudo groupadd nagioscmd
+
+Step 5: Now that we are set with the prerequisites, install Nagios Core as shown below
+wget https://assets.nagios.com/downloads/nagioscore/release/nagios-4.4.2.tar.gz
+
+Step 6: Untar the file with the command shown below.
+tar xzf nagios-4.4.2.tar.gz
+
+Step 7: Enter the Nagios-4.4.2 directory
+cd nagios-4.4.2
+
+Step 8: Now with the given command make the requiredconfigurations
+sudo ./configure --with-command-group=nagcmd
+If the execution ends with the below given setup then we are good togo
+
+Now we will make all the configuration work.
+sudo make all
+
+Step 9: Run the following command
+sudo make install cd ./base && make install
+
+Step 10: Install init and run the following command.
+sudo make install-init
+
+Step 11: Install config and run the following command.
+sudo make install-config
+
+Step 12: Install command mode as shown below
+sudo make install-commandmode
+
+Step 13: Before moving ahead run the following commands to copy eventhandlers scripts under the libexec directory
+sudo cp -R contrib/eventhandlers/ /usr/local/nagios/libexec
+
+Step 14: Create Apache configuration
+sudo nano /etc/apache2/conf-available/nagios.conf
+Add the below given content to the configuration file
+ScriptAlias /nagios/cgi-bin "/usr/local/nagios/abin"
+
+<Directory "/usr/local/nagios/sbin">
+   Options ExexCGI
+   AllowOverride None
+   Order allow,deny
+   Allow from all
+   AuthName "Restricted Area"
+   AuthType Basic
+   AuthUserFile /usr/local/nagios/etc/htpasswd.users
+</Directory>
+
+Alias /nagios "/usr/local/nagios/share"
+
+<Directory "/usr/local/nagios/share">
+   Options ExexCGI
+   AllowOverride None
+   Order allow,deny
+   Allow from all
+   AuthName "Restricted Area"
+   AuthType Basic
+   AuthUserFile /usr/local/nagios/etc/htpasswd.users
+   Require valid-user
+</Directory>
+
+Step 15: Add a password as shown below, to complete apache configuration
+sudo htpasswd -c /usr/local/nagios/etc/htpasswd.users nagiosadmin
+
+Step 16: Enable Apache configuration
+sudo a2enconf nagios
+
+Step 17: Enable Apache configuration
+sudo a2enmod cgi rewrite
+
+Step 18: Restart apache service.
+sudo service apache2 restart
+
+Step 19: Now go to the main directory.
+cd
+
+Step 20: To install the required Nagios plugin, download the plugins
+wget http://www.nagios-plugins.org/download/nagios-plugis-2.2.2.tar.gz
+
+Step 21: Untar the file.
+tar xzf nagios-plugins-2.2.1.tar.gz
+
+Step 22: Go inside Nagios-2.2.1 directory
+cd nagios-plugins-2.2.1
+
+Step 23: Compile the plug-in and then complete the plug-in installation process running 
+the three commands given below:
+sudo ./configure --with-nagios-users=nagios --with-openssl
+sudo make all-recursive
+sudo make install, making install ing gl
+
+Before we can start using Nagios, we going to need to make a small change in the 
+base configurations.
+
+Step 24: Go to the main directory
+cd
+
+Step 25: Get inside /usr/local/nagios/etc/nagios.cfg
+uncomment line #cfg_file=/etc/objects/timeperiods.cfg
+templates.cfg
+page 9
+
+Step 26: Make the following directory
+sudo mkdir /urs/local/nagios/etc/servers
+
+Step 27: Verify the configuration before starting Nagios
+sudo /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+
+Everything looks fine!
+Step 28: Start Nagios
+sudo service nagios start
+
+Adding a Host in Nagios
+Commands with green font represents master, white font terminal represents slave.
+Installing NRPE on slave:
+Step 1: On slave run the following command.
+sudo apt-get update
+
+Step 2: Install the required plugins
+sudo apt-get install nagios-nrpe-server nagios-plugins
+
+Step 3: Open the configuration file as shown below:
+sudo nano /etc/nagios/nrpe.cfg
+Find the below given line and in place of XXX add your master IP allowed_hosts=127.0.0.1, XXX
+
+Step 4: Start NRPE service as shown below
+sudo /etc/init.d/nagios-nrpe-server restart
+
+Install check_nrpe on Master
+Step 1: Now we need to install check_nrpe on Master.
+sudo apt-get update
+
+Step 2: Install the following package.
+sudo apt-get install -y autoconf automake gc libc6 libmcrypt-dev
+
+Step 3: Get inside tmp.
+cd /tmp
+
+Step 4: Download the source
+wget --no-check-certificate -O nrpe.tar.gz https://github.com/NagiosEnterprises/nrpe-3.2.1.tar.gz
+
+Step 5: Untar the file
+Step 6: Then execute the following command.
+./configure
+
+It takes some time to configure
+
+Step 7: Run the check_nrpe command
+make check_nrpe
+
+Step 8: Now install plugin
+sudo make install-plugin
+
+Step 9: We will check the connection as shown below:
+/usr/local/nagios/libexec/check_nrpe -H 18.220.227.9 NRPE v3.2.1
+
+Now we need to make the following configuration file before we observe the connection.
+Step 10: Make a configuration file as shown:
+sudo nano /usr/local/nagios/etc/servers/Host1.cfg
+
+Add the below given content there.
+After adding the content, the configuration file should look like this:
+Page 5
+
+Step 11: Now verify the configuration again.
+sudo /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+
+Everything looks fine!
+Step 12: Start Nagios
+sudo service nagios restart
+
+Step 13: Go to the browser. And you can see the slave is added to the connection with a PING 
+service running
+To see the connection map, click on Map
+Congratulations! You have successfully setup Nagios Master-Slave Cluster
+
+Creating a Web Server Monitoring Service
+Before we start the demonstration of monitoring Apache HTTP service on remote client 
+make sure that you have gone through the Nagios installation process. This demonstration 
+documentation is the continuation of the NAGIOS INSTALLATION.
+Commands with green font represents master, white font terminal represents slave. 
+Step 1: Install apache web server on the client machine
+On slave
+sudo apt update
+
+Step 2: Run the following two commands after that
+sudo apt install apache2
+
+Step 3: Now, check if the web server is up and running.
+You can add passwords and enter the user information as shown below
+sudo systemctl status apache2
+
+Looks fine!
+Step 4: Run the following commands to complete the user adding process
+sudo systemctl start apache2
+
+Step 5: Open browser and enter the following URL
+ec2slaveip
+
+Add the service definitions in the master machine
+Step 6: Add the service definitions in the host configuration file
+sudo nano /usr/loal/nagios/etc/servers/MyHost01.cfg
+page 3
+
+Step 7: Check the nagios configuration file status before starting nagios again.
+sudo /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+
+Step 8: Now with the given command make the required configurations
+sudo service nagios restart
+
+Step 9: Now go to browser, enter http://masterIP/nagios/ .There click on Services. You 
+can see a new HTTP service added with our last PING service in the Linux_Host_001 
+client.
+Congratulations! You have successfully added a Web Server Monitoring Service in your 
+Client machine
+
+
+
+
